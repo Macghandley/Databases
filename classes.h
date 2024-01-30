@@ -95,6 +95,7 @@ public:
         // Insert Records read from inputCSV into our new file
         string line;
         vector<string> fields;
+        int idx = 0;
         while (getline(inputFile, line)) {
             // Parse CSV
             stringstream ss(line);
@@ -103,13 +104,12 @@ public:
             while (getline(ss, field, ',')) {
                 fields.push_back(field);
             }
-            cout << fields[0] << endl;
+            cout << fields[idx++] << endl;
 
             // Create a record from the fields and insert it into the data file
             insertRecord(Record(fields));
-
-            cout << "RECORDED" << endl;
         }
+        cout << fields.size() << endl;
 
         inputFile.close();
         
