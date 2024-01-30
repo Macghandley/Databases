@@ -84,26 +84,31 @@ public:
 
     // Read csv file (Employee.csv) and add records to the (EmployeeRelation)
     void createFromFile(string csvFName) {
+
+        // Open input file
         ifstream inputFile(csvFName);
         if (!inputFile.is_open()) {
             cerr << "Error: Unable to open input CSV file." << endl;
             exit(EXIT_FAILURE);
         }
 
+        // Insert Records read from inputCSV into our new file
         string line;
         vector<string> fields;
         while (getline(inputFile, line)) {
             // Parse CSV
             stringstream ss(line);
             string field;
-            fields.clear();
             
             while (getline(ss, field, ',')) {
                 fields.push_back(field);
             }
+            cout << fields[0] << endl;
 
             // Create a record from the fields and insert it into the data file
             insertRecord(Record(fields));
+
+            cout << "RECORDED" << endl;
         }
 
         inputFile.close();
