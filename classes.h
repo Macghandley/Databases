@@ -31,43 +31,87 @@ class StorageBufferManager {
 
 private:
     
-    const int BLOCK_SIZE = ; // initialize the  block size allowed in main memory according to the question 
+    const int BLOCK_SIZE = 4096; // initialize the block size allowed in main memory according to the question 
+    const int MAX_RECORD_SIZE = 716; // each record = (8 + 200 + 500 + 8 bytes)
 
     // You may declare variables based on your need 
+    int numRecords;
+    std::string csvFileName;
+    std::vector<int> offsets; // array of offsets to store start position of variable-length records in a page
 
     // Insert new record 
     void insertRecord(Record record) {
+
+        // Calc recordSize to see if it fits on page
+        int recordSize = calcRecordSize(record);
 
         // No records written yet
         if (numRecords == 0) {
             // Initialize first block
 
         }
-        // Add record to the block
+        // Check that there is space to add to block 
 
+        // Add record to the block
+        numRecords++;
 
         // Take neccessary steps if capacity is reached (you've utilized all the blocks in main memory)
 
 
     }
 
+    // Helper function to calculate the size of the record
+    int calcRecordSize(Record record) {
+        // id + name + bio + manager_id
+        return sizeof(record.id) + record.name.length() + record.bio.length() + sizeof(record.manager_id);
+    }
+
 public:
     StorageBufferManager(string NewFileName) {
         
         //initialize your variables
+        numRecords = 0;
 
         // Create your EmployeeRelation file 
-
+        ofstream outputFile(NewFileName, ios::binary | ios::out);
+        if (!outputFile.is_open()) {
+            cerr << "Error: Unable to open file for writing.\n";
+            exit(EXIT_FAILURE);
+        }
+        outputFile.close();
         
     }
 
     // Read csv file (Employee.csv) and add records to the (EmployeeRelation)
     void createFromFile(string csvFName) {
+        ifstream inputFile(csvFName);
+        if (!inputFile.is_open()) {
+            cerr << "Error: Unable to open input CSV file." << endl;
+            exit(EXIT_FAILURE);
+        }
+
+        string line;
+        vector<string> fields;
+        while (getline(inputFile, line)) {
+            // Parse CSV
+            stringstream ss(line);
+            string field;
+            fields.clear();
+            
+            while (getline(ss, field, ',')) {
+                fields.push_back(field);
+            }
+
+            // Create a record from the fields and insert it into the data file
+            insertRecord(Record(fields));
+        }
+
+        inputFile.close();
         
     }
 
     // Given an ID, find the relevant record and print it
     Record findRecordById(int id) {
-        
+        cout << "Not Implemented Yet";
     }
 };

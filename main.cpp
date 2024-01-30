@@ -23,6 +23,17 @@ int main(int argc, char* const argv[]) {
     manager.createFromFile("Employee.csv");
     
     // Loop to lookup IDs until user is ready to quit
+    int employeeId = 0;
+    while (employeeId != -1) {
+        cout << "Enter Employee ID to search (or -1 to quit): ";
+        cin >> employeeId;
+
+        if (employeeId != -1) {
+            Record result = manager.findRecordById(employeeId);
+            result.print();
+        }
+
+    }
     
 
     return 0;
