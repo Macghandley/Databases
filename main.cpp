@@ -64,7 +64,7 @@ void writeRecord(ofstream& outfile, const Record& record) {
 }
 
 int main() {
-    const string fileName = "EmployeeRelation.txt";
+    const string fileName = "EmployeeRelation.dat";
     const string inputFile = "Employee.csv";
     const int pageSize = 4096; // Page size
 
@@ -76,54 +76,75 @@ int main() {
         cerr << "Error opening files." << endl;
         return 1;
     }
+    
+    // Create 3 page buffer for memory optimization
+    vector<string> buffer;
+    string line;
+    int bytesRead = 0;
 
     int currentPageSize = sizeof(int) * 2; // Current page size
     vector<int> slotDirectory; // Slot directory for the current page
     int freeSpacePointer = 0; // Pointer to the start of free space on the current page
     int pages = 0; // Track # of previous "pages"
+    int currentPosition = 0;
     
-    string line;
-    while (getline(infile, line)) {
-        Record record;
-        parseCSV(line, record);
-        
-        // Calculate the size of the record
-        int idSize = sizeof(record.id);
-        int nameSize = record.name.size();
-        int bioSize = record.bio.size();
-        int managerIdSize = sizeof(record.managerId);
-        int recordSize = idSize + nameSize + bioSize + managerIdSize + sizeof(int) * 4; // Include sizes of data elements and offsets
+    
+    while (bytesRead <= (pageSize * 3)) {
 
-        // Check if adding the record will exceed the page size
-        if (currentPageSize + recordSize > pageSize) {
-            int directorySize = slotDirectory.size();
-            // Find where to write the directory
-            outfile.seekp(4096 * (pages + 1) - (directorySize*sizeof(int) + 2*sizeof(int)));   // Write slot directory to the file
-            for (int& size : slotDirectory) {
-                outfile << size;
-                
-            }
-            outfile << directorySize; // Write the size of the slot directory
-            outfile << freeSpacePointer; // Write the free space pointer
-
-            // Reset slot directory and free space pointer for the new page
-            slotDirectory.clear();
-            pages += 1;
-            freeSpacePointer = pages * 4096;
-            currentPageSize = sizeof(int) * 2;
+        currentPosition = infile.tellg();
+        if(!getline(infile, line)){
+            break;
         }
-        
-        // Write the record to the file
-        outfile.seekp(freeSpacePointer);
-        writeRecord(outfile, record);
 
-        
-        // Update slot directory and free space pointer
-        slotDirectory.push_back(recordSize);
-        
-        freeSpacePointer += recordSize;
-        // Update current page size
-        currentPageSize += recordSize + sizeof(int);
+        if(line.length() + bytesRead > (pageSize * 3)){
+            bytesRead = 0;
+            infile.seekg(currentPosition);
+            for(int s = 0; s < buffer.size(); s++){
+                Record record;
+                parseCSV(buffer[s], record);
+                
+                // Calculate the size of the record
+                int idSize = sizeof(record.id);
+                int nameSize = record.name.size();
+                int bioSize = record.bio.size();
+                int managerIdSize = sizeof(record.managerId);
+                int recordSize = idSize + nameSize + bioSize + managerIdSize + sizeof(int) * 4; // Include sizes of data elements and offsets
+
+                // Check if adding the record will exceed the page size
+                if (currentPageSize + recordSize > pageSize) {
+                    int directorySize = slotDirectory.size();
+                    // Find where to write the directory
+                    outfile.seekp(4096 * (pages + 1) - (directorySize*sizeof(int) + 2*sizeof(int)));   // Write slot directory to the file
+                    for (int& size : slotDirectory) {
+                        outfile << size;
+                        
+                    }
+                    outfile << directorySize; // Write the size of the slot directory
+                    outfile << freeSpacePointer; // Write the free space pointer
+
+                    // Reset slot directory and free space pointer for the new page
+                    slotDirectory.clear();
+                    pages += 1;
+                    freeSpacePointer = pages * 4096;
+                    currentPageSize = sizeof(int) * 2;
+                }
+                
+                // Write the record to the file
+                outfile.seekp(freeSpacePointer);
+                writeRecord(outfile, record);
+
+                
+                // Update slot directory and free space pointer
+                slotDirectory.push_back(recordSize);
+                
+                freeSpacePointer += recordSize;
+                // Update current page size
+                currentPageSize += recordSize + sizeof(int);
+            }
+        }else{
+            bytesRead += line.length();
+            buffer.push_back(line);
+        }
     }
 
     infile.close();
