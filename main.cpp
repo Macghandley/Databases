@@ -77,7 +77,7 @@ int main() {
         return 1;
     }
     
-    // Create 3 page buffer for memory optimization
+    // Create buffer for memory optimization
     vector<string> buffer;
     string line;
     int bytesRead = 0;
@@ -86,9 +86,9 @@ int main() {
     vector<int> slotDirectory; // Slot directory for the current page
     int freeSpacePointer = 0; // Pointer to the start of free space on the current page
     int pages = 0; // Track # of previous "pages"
-    int currentPosition = 0;
+    int currentPosition = 0; // Track position at start of line read to go back to if overflowing buffer 
     
-    
+    // For initial read/write, loop through 
     while (bytesRead <= (pageSize * 3)) {
 
         currentPosition = infile.tellg();
