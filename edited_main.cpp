@@ -46,45 +46,26 @@ void parseCSV(const string& line, Record& record) {
 void writeRecord(ofstream& outfile, const Record& record) {
      // Calculate sizes of data elements
      int idSize = sizeof(record.id);
-     /*cout << "record.id = " << record.id << endl;
-     cout << "idSize = " << idSize << endl;*/
      int nameSize = record.name.size();
-     /*     cout << "record.name = " << record.name << endl;
-         cout << "nameSize = " << nameSize << endl; */
      int bioSize = record.bio.size();
-     /*     cout << "record.bio = " << record.bio << endl;
-         cout << "bioSize = " << bioSize << endl; */
      int managerIdSize = sizeof(record.managerId);
-     /*    cout << "record.managerId = " << record.managerId << endl;
-        cout << "managerIdSize = " << managerIdSize << endl; */
 
-        // Calculate offsets
-     int idOffset = sizeof(int) * 4; // 4 integers before the id
+     // Calculate offsets
+     int idOffset = 0;
      int nameOffset = idOffset + idSize;
      int bioOffset = nameOffset + nameSize;
      int managerIdOffset = bioOffset + bioSize;
-
-     // Write offsets as strings
-     // outfile << idOffset;
-     // outfile << nameOffset;
-     // outfile << bioOffset;
-     // outfile << managerIdOffset;
 
      // Write data as strings
      outfile << record.id;
      outfile << record.name;
      outfile << record.bio;
-     outfile << record.managerId << endl;
-}
-
-// Given an ID, find the relevant record and print it
-Record findRecordById(int id) {
-     cout << "Not Implemented Yet";
+     outfile << record.managerId;
 }
 
 int main(int argc, char* const argv[]) {
 
-     const string fileName = "EmployeeRelation.txt";
+     const string fileName = "EmployeeRelation";
      const string inputFile = "Employee.csv";
      const int pageSize = 4096; // Page size
 
@@ -97,7 +78,8 @@ int main(int argc, char* const argv[]) {
           return 1;
      }
 
-     int currentPageSize = sizeof(int) * 2; // Current page size
+     int currentPageSize = 0; // Current page size
+     vector<Slot> principalSlotDir;
      vector<Slot> slotDir;
      int freeSpacePointer = 0; // Pointer to the start of free space on the current page
      int pages = 0; // Track # of previous "pages"
@@ -109,36 +91,35 @@ int main(int argc, char* const argv[]) {
           parseCSV(line, record);
 
           // Calculate the size of the record
-          int idSize = sizeof(record.id);
+          int idSize = 8;
           int nameSize = record.name.size();
           int bioSize = record.bio.size();
-          int managerIdSize = sizeof(record.managerId);
-          int recordSize = idSize + nameSize + bioSize + managerIdSize + sizeof(int) * 4; // Include sizes of data elements and offsets
+          int managerIdSize = 8;
+          int recordSize = idSize + nameSize + bioSize + managerIdSize; // Include sizes of data elements and offsets
 
           // Fill in slot directory
           Slot slot;
           slot.startOffset = freeSpacePointer;
           slot.recordLength = recordSize;
+          // Put slot in page slotDir and principalSlotDir to iterate over later
           slotDir.push_back(slot);
-          directorySize = slotDir.size() * sizeof(Slot);
+          principalSlotDir.push_back(slot);
+          directorySize = slotDir.size();
 
           // Check if adding the record will exceed the page size
           if (currentPageSize + recordSize + directorySize > pageSize) {
 
                // Find where to write the directory
-               outfile.seekp(4096 * (pages + 1) - (directorySize * sizeof(int) + 2 * sizeof(int)));   // Write slot directory to the file
+               outfile.seekp(pageSize * (pages + 1) - (directorySize));   // Write slot directory to the file
                for (const auto& slot : slotDir) {
                     outfile << slot.startOffset << slot.recordLength;
                }
 
-               // outfile << directorySize; // Write the size of the slot directory
-               // outfile << freeSpacePointer; // Write the free space pointer
-
                // Reset slot directory and free space pointer for the new page
                slotDir.clear();
                pages += 1;
-               freeSpacePointer = pages * 4096;
-               currentPageSize = sizeof(int) * 2;
+               freeSpacePointer = pages * pageSize;
+               currentPageSize = 0;
           }
 
           // Write the record to the file
@@ -149,10 +130,19 @@ int main(int argc, char* const argv[]) {
           freeSpacePointer += recordSize;
 
           // Update current page size
-          currentPageSize += recordSize + sizeof(int);
+          currentPageSize += recordSize;
      }
 
      infile.close();
+     outfile.close();
+
+     const string binaryFileName = "EmployeeRelation";
+     ifstream binaryFile(binaryFileName, ifstream::binary);
+
+     if (!binaryFile) {
+          cerr << "Error opening files." << endl;
+          return 1;
+     }
 
      int employeeId = 0;
      while (employeeId != -1) {
@@ -160,13 +150,38 @@ int main(int argc, char* const argv[]) {
           cin >> employeeId;
 
           if (employeeId != -1) {
-               //Record result; //= manager.findRecordById(employeeId);
-               //cout << result;
-          }
+               for (int i = 0; i < principalSlotDir.size(); i++)
+               {
+                    // Get the offset and length of i'th record
+                    int recordOffset = principalSlotDir[i].startOffset;
+                    int recordLength = principalSlotDir[i].recordLength;
 
+                    // Create buffer to read record
+                    std::vector<char> buffer(recordLength);
+
+                    // go to every offset and check the ID
+                    binaryFile.seekg(recordOffset, std::ios::beg);
+                    binaryFile.read(buffer.data(), recordLength);
+
+                    // Check if the read operation was successful
+                    if (!binaryFile) {
+                         std::cerr << "Error reading from binary file at." << recordOffset << std::endl;
+                         return 1;
+                    }
+
+                    // Compare the first 8 chars (ID) to user input
+                    string employeeIdString = to_string(employeeId);
+                    std::string idFromBuffer(buffer.data(), 8);
+
+                    if (idFromBuffer == employeeIdString)
+                    {
+                         cout << buffer.data() << endl;
+                    }
+               }
+          }
      }
 
-     outfile.close();
+     binaryFile.close();
 
      return 0;
 }
