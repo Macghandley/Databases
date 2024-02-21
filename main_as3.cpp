@@ -1,21 +1,19 @@
 /*
  * CS 440 Assignment 3
- *
- * 
- * 
- * 
+ * Dylan Varga, vargad, 933831567
+ * McKellam Handley, handleym, 933654458
+ * 02/20/2024
 */
 
-
 #include <string>
+#include <string.h>
 #include <vector>
-#include <string>
 #include <iostream>
 #include <fstream>
-#include <string.h>
 #include <sstream>
-#include <bitset>
 #include <cmath>
+#include <bitset>
+
 
 using namespace std;
 
@@ -61,48 +59,77 @@ private:
     string fName;      // Name of index file
     int hashedInput;    // Holds hash coded code
     string pageBuffer;  // Holds entire page
+    int cursorOffset;  // Marks cursor position
+    string stringBuffer; // Declare once, holds strings for data read
+    string inputBuffer; // Declare once, holds inputs as strings
+    stringstream stringStreamX; // Declare once, generic stringstream
+
+    void readPageData(string stringBuffer, int cursorOffset, stringstream& stringStreamX){
+        ifstream inFile;
+        inFile.open(fName, ios::binary);
+        inFile.seekg(cursorOffset);
+
+        // Read from filestream using c-style string
+        char* pageBuffer = new char[BLOCK_SIZE + 1];
+        inFile.read(pageBuffer, BLOCK_SIZE);
+        pageBuffer[BLOCK_SIZE] = '\0';
+
+        inFile.close();
+
+        // Convert to a "new" string and use stringstream to parse
+        stringBuffer = pageBuffer;
+        delete[] pageBuffer;
+
+        stringStreamX.str(stringBuffer);
+        stringBuffer.clear();
+    }
+
+    int idToBinary(int recordID){
+        // Hashify
+        int hashedInput = recordID % 216;
+        int divResult = hashedInput;
+        int binaryOutput = 0;
+        int mod2Output = 0;
+
+        // Fake binary
+        for(int k = 0; k < i; k++){
+            mod2Output = divResult%2;
+            divResult = divResult/2;
+            binaryOutput += pow(10,k) * mod2Output;
+        }
+
+        // Bit flip
+        if(binaryOutput > blockDirectory.at(n-1)){
+            int negator = pow(10, i-1);
+            binaryOutput -= negator;
+        }
+
+        return binaryOutput;
+    }
 
     void sendRecordToFile(Record record){
-
-        string inputBuffer;
-
-        int cursorOffset = j*BLOCK_SIZE;
+        
+        cursorOffset = j * BLOCK_SIZE;
 
         // Calculate size of record plus pointers
         int recordLength = 8 + record.bio.length() + record.name.length() + 8 + 4 + 12;
 
         while(true)
         {
-            ifstream inFile;
-            inFile.open(fName, ios::binary);
-            inFile.seekg(cursorOffset);
-
-            // Read from filestream using c-style string
-            char* pageBuffer = new char[BLOCK_SIZE + 1];
-            inFile.read(pageBuffer, BLOCK_SIZE);
-            pageBuffer[BLOCK_SIZE] = '\0';
-
-            inFile.close();
-
-            // Convert to a "new" string and use stringstream to parse
-            string stringBuffer = pageBuffer;
-            delete[] pageBuffer;
-            stringstream stringStreamX;
-            stringStreamX.str(stringBuffer);
-            stringBuffer.clear();
+            readPageData(stringBuffer, cursorOffset, stringStreamX);
 
             // Track size of page slots
-            int slotStart = BLOCK_SIZE - 12;
-            int slotSize = 0;
             int currOffset = 0;
             int currLength = 0;
+            int slotStart = BLOCK_SIZE - 12;
+            int slotSize = 0;
 
             // Add offsets in slot directory
             if (getline(stringStreamX, inputBuffer, '<')){
 
                 if(stringStreamX.tellg() != -1){    // If getline succeeds
                     slotStart = stringStreamX.tellg();
-                    slotStart--;
+                    slotStart -= 1;
                     slotSize = BLOCK_SIZE - slotStart;
 
                     // Get position data from slots
@@ -112,26 +139,10 @@ private:
                     getline(stringStreamX, inputBuffer, '%');
                     currLength = stoi(inputBuffer);
                     
-                }
-                // Reset stringstream if getline fails
-                else{
+                // Reset stringstream if getline fails    
+                }else{
                     stringStreamX.clear();
-                    ifstream inFile;
-                    inFile.open(fName, ios::binary);
-                    inFile.seekg(cursorOffset);
-
-                    char* pageBuffer = new char[BLOCK_SIZE + 1];
-                    inFile.read(pageBuffer, BLOCK_SIZE);
-                    pageBuffer[BLOCK_SIZE] = '\0';
-
-                    inFile.close();
-
-                    string stringBuffer = pageBuffer;
-                    delete[] pageBuffer;
-
-                    stringstream stringStreamX;
-                    stringStreamX.str(stringBuffer);
-                    stringBuffer.clear();
+                    readPageData(stringBuffer, cursorOffset, stringStreamX);
                 }
             }
 
@@ -152,7 +163,6 @@ private:
                 RID.replace(7, to_string(newRecord.length()).length(), to_string(newRecord.length()));
 
                 // Enter record, slot into stream
-                
                 for(int i = 0; i < newRecord.length(); i++){
                     pageBuffer[i + (currOffset + currLength)] = newRecord[i];
                 }
@@ -172,9 +182,8 @@ private:
 
                 break;
 
-            }
             // If page is full
-            else{
+            }else{
                 stringStreamX.seekg(BLOCK_SIZE-11);     // Check for file pointer
                 getline(stringStreamX, inputBuffer, ']');
 
@@ -192,7 +201,6 @@ private:
                     strcpy(pageBuffer, (stringBuffer).c_str());
                     stringBuffer.clear();
 
-                    
                     // Fix current free space pointer and write
                     string newPointer = to_string(freeSpacePointer);
                     freeSpacePointer += BLOCK_SIZE;
@@ -223,7 +231,6 @@ private:
 
                 // Continue forward to new page
                 }else{
-                    
                     cursorOffset = newPageOffset; 
                 }
             }
@@ -251,25 +258,7 @@ private:
 
         numRecords++;
 
-        // Hash function
-        int hashedInput = record.id % 216;
-        int divResult = hashedInput;
-        int binaryOutput = 0;
-        int mod2Output = 0;
-
-        // Convert output to "binary"
-        for(int k = 0; k < i; k++){
-            mod2Output = divResult%2;
-            divResult = divResult/2;
-            binaryOutput += pow(10,k) * mod2Output;
-
-        }
-
-        // Bit flip
-        if(binaryOutput > blockDirectory.at(n-1)){
-            int negator = pow(10, i-1);
-            binaryOutput -= negator;
-        }
+        int binaryOutput = idToBinary(record.id);
 
         // Find which page to go to
         for(int k = 0; k < n; k++){
@@ -280,8 +269,6 @@ private:
 
         // Add to correct page
         sendRecordToFile(record);
-
-        string inputBuffer;
                 
         // Check if capacity is reached
         if((numRecords * 730) > (.7 * n * 4096)){
@@ -293,15 +280,14 @@ private:
                 i++;
             }
             // Update block directory
-            divResult = n-1;
+            int divResult = n-1;
             binaryOutput = 0;
             int k = 0;
 
             // Fake binary
             while(divResult != 0){
-                mod2Output = divResult%2;
+                int mod2Output = divResult%2;
                 divResult = divResult/2;
-
                 binaryOutput += pow(10,k) * mod2Output;
                 k++;
             }
@@ -318,8 +304,7 @@ private:
 
                     if(numOverCap == 0){
                         inFile.seekg(BLOCK_SIZE * l);
-                    }
-                    else{
+                    }else{
                         inFile.seekg(numOverCap);
                     }
 
@@ -330,7 +315,6 @@ private:
                     string stringBuffer = pageBuffer;
                     delete[] pageBuffer;
 
-                    stringstream stringStreamX;
                     stringStreamX.str(stringBuffer);
                     stringBuffer.clear();
 
@@ -342,7 +326,7 @@ private:
                             if(stringStreamX.tellg() != -1){
                                 numSlots = stringStreamX.tellg();
                                 int slotOffset = stringStreamX.tellg();
-                                slotOffset--;
+                                slotOffset -= 1;
 
                                 // Get record offset
                                 getline(stringStreamX, inputBuffer, '%');
@@ -359,28 +343,12 @@ private:
                                 getline(stringStreamX, inputBuffer, ';');
                                 string manid = inputBuffer;
 
-                                // Create record and send to new location
+                                // Create record
                                 vector<string> newVector{id, name, bio, manid};
                                 Record recordToSend(newVector);
 
-                                // Hashify
-                                int hashedInput = recordToSend.id % 216;
-                                int divResult = hashedInput;
-                                int binaryOutput = 0;
-                                int mod2Output = 0;
-
-                                // More fake binary
-                                for(int k = 0; k < i; k++){
-                                    mod2Output = divResult%2;
-                                    divResult = divResult/2;
-                                    binaryOutput += pow(10,k) * mod2Output;
-                                }
-
-                                // Bit flip
-                                if(binaryOutput > blockDirectory.at(n-1)){
-                                    int negator = pow(10, i-1);
-                                    binaryOutput -= negator;
-                                }
+                                // Get binary
+                                int binaryOutput = idToBinary(recordToSend.id);
 
                                 if(binaryOutput != blockDirectory.at(j)){
                                     // Find proper page
@@ -415,8 +383,7 @@ private:
                                     outFile.open(fName, ios::in | ios::ate | ios::binary);
                                     if(numOverCap == 0){
                                         outFile.seekp(BLOCK_SIZE*l);
-                                    }
-                                    else{
+                                    }else{
                                         outFile.seekp(numOverCap);
                                     }
                                     outFile.write(pageBuffer, 4096);
@@ -432,26 +399,13 @@ private:
                             }else{
                                 // Reset ss
                                 stringStreamX.clear();
-                                ifstream inFile;
-                                inFile.open(fName, ios::binary);
                                 if(numOverCap == 0){
-                                    inFile.seekg(BLOCK_SIZE*l);
+                                    cursorOffset = BLOCK_SIZE * j;
+                                }else{
+                                    cursorOffset = numOverCap;
                                 }
-                                else{
-                                    inFile.seekg(numOverCap);
-                                }
-                                
-                                char* pageBuffer = new char[BLOCK_SIZE + 1];
-                                inFile.read(pageBuffer, BLOCK_SIZE);
-                                pageBuffer[BLOCK_SIZE] = '\0';
-                                string stringBuffer = pageBuffer;
-                                delete[] pageBuffer;
 
-                                stringstream stringStreamX;
-                                stringStreamX.str(stringBuffer);
-                                stringBuffer.clear();
-
-                                inFile.close();
+                                readPageData(stringBuffer, cursorOffset, stringStreamX);
 
                                 // Get page offset
                                 stringStreamX.seekg(BLOCK_SIZE-11);
@@ -461,8 +415,7 @@ private:
                                 if(newPageOffset == 0){
                                     stringStreamX.clear();
                                     break;
-                                }
-                                else{
+                                }else{
                                     numOverCap = newPageOffset;
                                     numSlots = 0;
                                 }
@@ -482,8 +435,7 @@ private:
                             if(newPageOffset == 0){
                                 stringStreamX.clear();
                                 break;
-                            }
-                            else{
+                            }else{
                                 numOverCap = newPageOffset;
                                 numSlots = 0;
                             }
@@ -494,7 +446,7 @@ private:
                             // If not spaces then use record
                             if((stringStreamX.str())[numSlots] != ' '){
                                 int slotOffset = stringStreamX.tellg();
-                                slotOffset--;
+                                slotOffset -= 1;
                                 
                                 // Get record offset
                                 getline(stringStreamX, inputBuffer, '%');
@@ -515,24 +467,7 @@ private:
                                 vector<string> newVector{id, name, bio, manid};
                                 Record recordToSend(newVector);
 
-                                // Hashify
-                                int hashedInput = recordToSend.id % 216;
-                                int divResult = hashedInput;
-                                int binaryOutput = 0;
-                                int mod2Output = 0;
-
-                                // Fake binary
-                                for(int k = 0; k < i; k++){
-                                    mod2Output = divResult%2;
-                                    divResult = divResult/2;
-                                    binaryOutput += pow(10,k) * mod2Output;
-                                }
-
-                                // Bit flip
-                                if(binaryOutput > blockDirectory.at(n-1)){
-                                    int negator = pow(10, i-1);
-                                    binaryOutput -= negator;
-                                }
+                                int binaryOutput = idToBinary(recordToSend.id);
 
                                 // Find potential move location
                                 if(binaryOutput != blockDirectory.at(j)){
@@ -567,8 +502,7 @@ private:
                                     outFile.open(fName, ios::in | ios::ate | ios::binary);
                                     if(numOverCap == 0){
                                         outFile.seekp(BLOCK_SIZE*l);
-                                    }
-                                    else{
+                                    }else{
                                         outFile.seekp(numOverCap);
                                     }
                                     outFile.write(pageBuffer, 4096);
@@ -667,26 +601,9 @@ public:
 
     // Given an ID, find the relevant record and print it
     void findRecordById(int searchId) {
-
-        // Hash ID
-        int hashedInput = searchId % 216;
-        int divResult = hashedInput;
-        int binaryOutput = 0;
-        int mod2Output = 0;
         
-        // Fake binary
-        for(int k = 0; k < i; k++){
-            mod2Output = divResult%2;
-            divResult = divResult/2;
-            binaryOutput += pow(10,k) * mod2Output;
-
-        }
-
-        // Bit flip
-        if(binaryOutput > blockDirectory.at(n-1)){
-            int negator = pow(10, i-1);
-            binaryOutput -= negator;
-        }
+        // Convert to binary
+        int binaryOutput = idToBinary(searchId);
 
         // Find block to seek to
         for(int k = 0; k < n; k++){
@@ -700,29 +617,13 @@ public:
 
         while(true){
             // Take page from file
-            ifstream inFile;
-            inFile.open(fName, ios::binary);
-
             if(numOverCap == 0){
-                inFile.seekg(BLOCK_SIZE * j);
+                cursorOffset = BLOCK_SIZE * j;
+            }else{
+                cursorOffset = numOverCap;
             }
-            else{
-                inFile.seekg(numOverCap);
-            }
 
-            char* pageBuffer = new char[BLOCK_SIZE + 1];
-            inFile.read(pageBuffer, BLOCK_SIZE);
-            pageBuffer[BLOCK_SIZE] = '\0';
-            string stringBuffer = pageBuffer;
-            delete[] pageBuffer;
-
-            stringstream stringStreamX;
-            stringStreamX.str(stringBuffer);
-            stringBuffer.clear();
-
-            inFile.close();
-
-            string inputBuffer;
+            readPageData(stringBuffer, cursorOffset, stringStreamX);
 
             // Slot  handling
             if(numSlots == 0){
@@ -732,7 +633,7 @@ public:
                         // Catch position
                         numSlots = stringStreamX.tellg();
                         int slotOffset = stringStreamX.tellg();
-                        slotOffset--;
+                        slotOffset -= 1;
 
                         // Get record
                         getline(stringStreamX, inputBuffer, '%');
@@ -758,26 +659,14 @@ public:
                     // If no slots
                     }else{
                         stringStreamX.clear();
-                        ifstream inFile;
-                        inFile.open(fName, ios::binary);
                         if(numOverCap == 0){
-                            inFile.seekg(BLOCK_SIZE * j);
+                            cursorOffset = BLOCK_SIZE * j;
+                        }else{
+                            cursorOffset = numOverCap;
                         }
-                        else{
-                            inFile.seekg(numOverCap);
-                        }
 
-                        char* pageBuffer = new char[BLOCK_SIZE + 1];
-                        inFile.read(pageBuffer, BLOCK_SIZE);
-                        pageBuffer[BLOCK_SIZE] = '\0';
-                        string stringBuffer = pageBuffer;
-                        delete[] pageBuffer;
+                        readPageData(stringBuffer, cursorOffset, stringStreamX);
 
-                        stringstream stringStreamX;
-                        stringStreamX.str(stringBuffer);
-                        stringBuffer.clear();
-
-                        inFile.close();
                         stringStreamX.seekg(BLOCK_SIZE-11);
                         getline(stringStreamX, inputBuffer, ']');
                         int newPageOffset = stoi(inputBuffer);
@@ -786,8 +675,7 @@ public:
                         if(newPageOffset == 0){
                             stringStreamX.clear();
                             break;
-                        }
-                        else{
+                        }else{
                             numOverCap = newPageOffset;
                             numSlots = 0;
                         }
@@ -805,8 +693,7 @@ public:
                     if(newPageOffset == 0){
                         stringStreamX.clear();
                         break;
-                    }
-                    else{
+                    }else{
                         numOverCap = newPageOffset;
                         numSlots = 0;
                     }
@@ -817,7 +704,7 @@ public:
                     if((stringStreamX.str())[numSlots] != ' '){
                         // Get position
                         int slotOffset = stringStreamX.tellg();
-                        slotOffset--;
+                        slotOffset -= 1;
   
                         // Get record
                         getline(stringStreamX, inputBuffer, '%');
@@ -855,7 +742,7 @@ public:
 int main(int argc, char* const argv[]) {
 
     // Create index
-    LinearHashIndex employees("EmployeeIndex.bin");
+    LinearHashIndex employees("EmployeeIndex.dat");
     employees.createFromFile("Employee.csv");
 
     // Take user inputs and call lookup
