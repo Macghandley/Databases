@@ -1,14 +1,16 @@
 /* 
-    CS 440 Assignment 4
+    CS 440 Assignment 5
 
     McKellam Handley - handleym@oregonstate.edu - 933654458
     Dylan Varga - vargad@oregonstate.edu - 933831567
 */  
 
 #include <bits/stdc++.h>
+#include <stdio.h>
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <array>
 
 using namespace std;
 
@@ -30,7 +32,14 @@ class Records{
         }
     }emp_record;
 
-    void print(){
+    struct DeptRecord {
+        int did;
+        string dname;
+        double budget;
+        int managerid;
+    }dept_record;
+
+    void print_emp(){
         cout << emp_record.eid << ","
              << emp_record.ename << ","
              << emp_record.age << ","
@@ -39,6 +48,7 @@ class Records{
 
     int no_values = 0; //You can use this to check if you've don't have any more tuples
     int number_of_emp_records = 0; // Tracks number of emp_records you have on the buffer
+    int number_of_dept_records = 0; //Track number of dept_records you have on the buffer
 };
 
 // Grab a single block from the Emp.csv file and put it inside the EmpRecord structure of the Records Class
@@ -59,6 +69,12 @@ Records Grab_Emp_Record(fstream &empin) {
         getline(s, word, ',');
         emp.emp_record.salary = stod(word);
 
+        //Ensuring that you cannot use both structure (EmpEecord, DeptRecord) at the same memory block / time 
+        emp.dept_record.did = 0;
+        emp.dept_record.dname = "";
+        emp.dept_record.budget = 0;
+        emp.dept_record.managerid = 0;
+
         return emp;
     } else {
         emp.no_values = -1;
@@ -66,133 +82,239 @@ Records Grab_Emp_Record(fstream &empin) {
     }
 }
 
-vector<Records> buffers; //use this class object of size 22 as your main memory
+// Grab a single block from the Dept.csv file and put it inside the DeptRecord structure of the Records Class
+Records Grab_Dept_Record(fstream &deptin) {
+    string line, word;
+    //DeptRecord dept;
+    Records dept;
+    if (getline(deptin, line, '\n')) {
+        stringstream s(line);
+        getline(s, word,',');
+        dept.dept_record.did = stoi(word);
+        getline(s, word, ',');
+        dept.dept_record.dname = word;
+        getline(s, word, ',');
+        dept.dept_record.budget = stod(word);
+        getline(s, word, ',');
+        dept.dept_record.managerid = stoi(word);
+
+        //Ensuring that you cannot use both structure (EmpEecord, DeptRecord) at the same memory block / time 
+        dept.emp_record.eid = 0;
+        dept.emp_record.ename = "";
+        dept.emp_record.age = 0;
+        dept.emp_record.salary = 0;
+
+        return dept;
+    } else {
+        dept.no_values = -1;
+        return dept;
+    }
+}
+
+Records buffers[buffer_size]; //use this class object of size 22 as your main memory
 
 //PASS 1
 //Sorting the buffers in main_memory
-void Sort_Buffer(){
+void Sort_Emp_Buffer(int n = buffer_size){
     //Remember: You can use only [AT MOST] 22 blocks for sorting the records / tuples and create the runs
-
-    // Sort backwards so we can pop the smallest from the back
-    vector<Records> sorted_buffers;
-
-    while(buffers.size() != 0)
-    {
-        int biggestId = 0;
-        int biggestIdIndex = 0;
-
-        // Find the "biggest" id
-        for(int i = 0; i < buffers.size(); i++)
-        {
-            if(buffers[i].emp_record.eid > biggestId)
-            {
-                biggestId = buffers[i].emp_record.eid;
-                biggestIdIndex = i;
-            }
-        }
-        // Store the "biggest" id Records in the sorted buffer and remove from other buffer 
-        sorted_buffers.push_back(buffers[biggestIdIndex]);
-        buffers.erase(buffers.begin()+biggestIdIndex);
-    }
-    buffers = sorted_buffers;
+    // Sort buffers by emp ID
+    sort(buffers, buffers + n, [](Records a, Records b){return a.emp_record.eid < b.emp_record.eid; });
+    return;
 }
 
-void PrintSorted(Records tempRecord, fstream &outputFile){
-    //Store in EmpSorted.
-    int intSalary = static_cast<int>(tempRecord.emp_record.salary);
-    outputFile << to_string(tempRecord.emp_record.eid) << ","
-               << tempRecord.emp_record.ename << ","
-               << to_string(tempRecord.emp_record.age) << ","
-               << to_string(intSalary) << "\n";
+void Sort_Dept_Buffer(int n = buffer_size){
+    //Remember: You can use only [AT MOST] 22 blocks for sorting the records / tuples and create the runs
+    // Sort buffers by dept manager ID
+    sort(buffers, buffers + n, [](Records a, Records b){return a.dept_record.managerid < b.dept_record.managerid; });
+    return;
+}
+
+// Write employees
+void PrintSortedEmps(fstream &outputFile, int n = buffer_size){
+    int intSalary;
+    for(int i = 0; i < n; i++){
+        intSalary = static_cast<int>(buffers[i].emp_record.salary);
+        outputFile << to_string(buffers[i].emp_record.eid) << ","
+                   << buffers[i].emp_record.ename << ","
+                   << to_string(buffers[i].emp_record.age) << ","
+                   << to_string(intSalary) << "\n";
+    }
+    return;
+}
+
+// Write departments
+void PrintSortedDepts(fstream &outputFile, int n = buffer_size){
+    int intBudget;
+    for(int i = 0; i < n; i++){
+    intBudget = static_cast<int>(buffers[i].dept_record.budget);
+    outputFile << to_string(buffers[i].dept_record.did) << ","
+               << buffers[i].dept_record.dname << ","
+               << to_string(intBudget) << ","
+               << to_string(buffers[i].dept_record.managerid) << "\n";
+    }
+    return;
+}
+
+// Create employee runs
+int Create_Emp_Runs(fstream &empin){
+
+    int runIndex = 0;
+    int i = 0;
+    while(!empin.eof()){
+        buffers[i] = Grab_Emp_Record(empin);
+        i++;
+
+        if(i == buffer_size || buffers[i - 1].no_values == -1){
+            // Keep novalue buffer out of mem
+            if(buffers[i - 1].no_values == -1){
+                i--;
+            }
+            // Sort and print run
+            Sort_Emp_Buffer(i);
+
+            if(i != 0){
+                fstream tempEmpFile;
+                tempEmpFile.open("tempEmpFile" + std::to_string(runIndex), ios::out | ios::app);
+                PrintSortedEmps(tempEmpFile, i);
+                tempEmpFile.close();
+                runIndex++;
+            }
+            
+            i = 0;
+        }
+    }
+    return runIndex;
+}
+
+// Create department runs
+int Create_Dept_Runs(fstream &deptin){
+
+    int runIndex = 0;
+    int i = 0;
+    while(!deptin.eof()){
+        buffers[i] = Grab_Dept_Record(deptin);
+        i++;
+
+        if(i == buffer_size || buffers[i - 1].no_values == -1){
+            // Keep novalue buffer out of mem
+            if(buffers[i - 1].no_values == -1){
+                i--;
+            }
+            // Sort and print run
+            Sort_Dept_Buffer(i);
+
+            if(i != 0){
+                fstream tempDeptFile;
+                tempDeptFile.open("tempDeptFile" + std::to_string(runIndex), ios::out | ios::app);
+                PrintSortedDepts(tempDeptFile, i);
+                tempDeptFile.close();
+                runIndex++;
+            }
+            
+            i = 0;
+        }
+    }
+    return runIndex;
+}
+
+void PrintJoin(fstream& outputFile, Records &emp, Records &dept){
+    
+    int intSalary = static_cast<int>(emp.emp_record.salary);
+    int intBudget = static_cast<int>(dept.dept_record.budget);
+    outputFile << to_string(emp.emp_record.eid) << ","
+               << emp.emp_record.ename << ","
+               << to_string(emp.emp_record.age) << ","
+               << to_string(intSalary) << ","
+               << to_string(dept.dept_record.did) << ","
+               << dept.dept_record.dname << ","
+               << to_string(intBudget) << ","
+               << to_string(dept.dept_record.managerid) << "\n";
     return;
 }
 
 //PASS 2
 //Use main memory to Merge the Runs 
-//which are already sorted in 'runs' of the relation Emp.csv 
-void Merge_Runs(){
 
-    //Creating the EmpSorted.csv file where we will store our sorted results
-    fstream SortOut;
-    SortOut.open("EmpSorted.csv", ios::out | ios::app);
-
-    // Clear buffers to make sure we only have at max 22 pages in main mem
-    buffers.clear();
-    // Store the line of the next Record to read in each temp file 
-    int lineCounter[buffer_size] = {0}; 
-
-    // Temp vars
-    fstream tempFile;
-    Records tempRecord;
-    std::string filename;
-
-    // Used to find the smallest id in buffers
-    int smallestId = 0;
-    int smallestIdIndex = 0;
-
-    // Start by reading the first line from each file.
-    for(int i = 0; i < buffer_size; i++)
-    {
-        filename = "tempFile_" + std::to_string(i);
-        tempFile.open(filename, ios::in);
-
-        // Exit when we are out of temp_files to read from. In other words, store at max 22 pages in main mem
-        if (!tempFile)
-        {
-            break;
-        }
-
-        // Grab the first record from each file and put it in buffers
-        tempRecord = Grab_Emp_Record(tempFile);
-        buffers.push_back(tempRecord);
-
-        //Inc lineCounter to make sure we don't read first line again
-        lineCounter[i] += 1; 
-        tempFile.close();
-    }
-
-    // Continue to find the smallest eidn from each file until there are no more lines left to read
-    while(true){
-        // Resest helper vars for next loop
-        smallestId = 999999;
-        smallestIdIndex = 0;
-
-        // Find the smallest eid
-        for(int i = 0; i < buffers.size(); i++)
-        {
-            // Find the smallest eid but also consider the fact that we may have run out of Records in a tempFile
-            // (If we've looked at all Records in a file, Grab_Emp_Record will store a Records var where no_values = -1.
-            // Ignore Records from buffers[i] if tempFile_i has been fully read)
-            if(buffers[i].emp_record.eid < smallestId && buffers[i].no_values != -1)
-            {
-                smallestId = buffers[i].emp_record.eid;
-                smallestIdIndex = i;
+// Helper fucntion to grab next employee index
+int Get_Next_Employee(int lowerEmpIndex, int upperEmpIndex){
+    int next = lowerEmpIndex;
+    for(int i = lowerEmpIndex + 1; i < upperEmpIndex; i++){
+        if(buffers[i].no_values != -1){
+            if(buffers[i].emp_record.eid < buffers[next].emp_record.eid){
+                next = i;
             }
         }
-        // If we get through this loop and smallestIdIndex == 999999, then we have looked at every record from every temp file
-        if(smallestId == 999999)
-        {
-            break;
+    }
+    if(buffers[next].no_values == -1){
+        next = -1;
+    }
+    return next;
+}
+
+// Helper fucntion to grab next department index
+int Get_Next_Department(int lowerDeptIndex, int upperDeptIndex){
+    int next = lowerDeptIndex;
+    for(int i = lowerDeptIndex + 1; i < upperDeptIndex; i++){
+        if(buffers[i].no_values != -1){
+            if(buffers[i].dept_record.managerid < buffers[next].dept_record.managerid){
+                next = i;
+            }
         }
+    }
+    if(buffers[next].no_values == -1){
+        next = -1;
+    }
+    return next;
+}
 
-        // output the Record with  "smallest" eid into the EmpSorted.csv file
-        tempRecord = buffers[smallestIdIndex];
-        PrintSorted(tempRecord, SortOut); 
+//Use main memory to Merge and Join tuples 
+//which are already sorted in 'runs' of the relations Dept and Emp
+void Merge_Join_Runs(fstream &sortOut, int empRunCount, int deptRunCount){
 
-        // Open up the file that has the "smallest" eid to  take the next record
-        filename = "tempFile_" + std::to_string(smallestIdIndex);
-        tempFile.open(filename, ios::in);
+    fstream empInputs[empRunCount];
+    fstream deptInputs[deptRunCount];
 
-        // Get next Record from the temp_file we just took from to print to EmpSorted.csv
-        for(int i = 0; i <= lineCounter[smallestIdIndex]; i++)
-        {
-            tempRecord = Grab_Emp_Record(tempFile);
+    // Tracking variables for buffer
+    int lowerEmpIndex = 0;
+    int upperEmpIndex = empRunCount;
+    int lowerDeptIndex = empRunCount;
+    int upperDeptIndex = empRunCount + deptRunCount;
+
+    // Open runs and read to buffer
+    for(int i = 0; i < empRunCount; i++){
+        string filename = "tempEmpFile" + to_string(i);
+        empInputs[i].open(filename, ios::in);
+        buffers[lowerEmpIndex + i] = Grab_Emp_Record(empInputs[i]);
+    }
+    for(int i = 0; i < deptRunCount; i++){
+        string filename = "tempDeptFile" + to_string(i);
+        deptInputs[i].open(filename, ios::in);
+        buffers[lowerDeptIndex + i] = Grab_Dept_Record(deptInputs[i]);
+    }
+
+    // Get initial next-s
+    int nextEmp = Get_Next_Employee(lowerEmpIndex, upperEmpIndex);
+    int nextDept = Get_Next_Department(lowerDeptIndex, upperDeptIndex);
+
+    // Loop until either table is empty
+    while(nextEmp != -1 && nextDept != -1){
+        if(buffers[nextEmp].emp_record.eid < buffers[nextDept].dept_record.managerid){
+            buffers[nextEmp] = Grab_Emp_Record(empInputs[nextEmp - lowerEmpIndex]);
+            nextEmp = Get_Next_Employee(lowerEmpIndex, upperEmpIndex);
+        }else if(buffers[nextEmp].emp_record.eid > buffers[nextDept].dept_record.managerid){
+            buffers[nextDept] = Grab_Dept_Record(deptInputs[nextDept - lowerDeptIndex]);
+            nextDept = Get_Next_Department(lowerDeptIndex, upperDeptIndex);
+        }else{
+            // Match managers to departments
+            while(buffers[nextEmp].emp_record.eid == buffers[nextDept].dept_record.managerid) {
+                PrintJoin(sortOut, buffers[nextEmp], buffers[nextDept]);
+                buffers[nextDept] = Grab_Dept_Record(deptInputs[nextDept - lowerDeptIndex]);
+                nextDept = Get_Next_Department(lowerDeptIndex, upperDeptIndex);
+            }
+
+            buffers[nextEmp] = Grab_Emp_Record(empInputs[nextEmp - lowerEmpIndex]);
+            nextEmp = Get_Next_Employee(lowerEmpIndex, upperEmpIndex);
         }
-        tempFile.close();
-
-        // Update buffer to hold next record in temp_file. Inc line counter of the file we just grabbed from
-        buffers[smallestIdIndex] = tempRecord;
-        lineCounter[smallestIdIndex] += 1;
     }
     return;
 }
@@ -200,112 +322,35 @@ void Merge_Runs(){
 int main() {
 
     //Open file streams to read and write
-    //Opening out the Emp.csv relation that we want to Sort
+    //Opening out two relations Emp.csv and Dept.csv which we want to join
     fstream empin;
+    fstream deptin;
     empin.open("Emp.csv", ios::in);
-
-    fstream tempFiles[buffer_size]; // Store pointers to all the temp files we make
-
-    //1. Create tempFiles using Emp.csv. Temp files are sorted using Sort_Buffer()
-    
-    int runCounter = 0; // To keep track of how many temp files we have
-    int number_of_emp_records = 0;
-    Records empRecord;
-    empRecord.no_values = 0;
-    
-
-    // Read in 20 lines at a time from Emp.csv, create 20 Records, then create a temp file and store those 20 Records
-    while(true)
-    {
-        // Attempt to read a line and create a Records to store in buffers
-        empRecord = Grab_Emp_Record(empin);
-        //empRecord.print();
-
-        // If we are at the end of Emp.csv, create last temp file with whatever is in buffers and exit
-        if(empRecord.no_values == -1)
-        {
-            // Sort buffers before storing in file
-            Sort_Buffer();
-
-            // Open a new temp file, call it tempFile_{runCounter}
-            std::string filename = "tempFile_" + std::to_string(runCounter);
-            tempFiles[runCounter].open(filename, ios::out);
-
-            // Check if the file is successfully opened
-            if (!tempFiles[runCounter]) {
-                std::cerr << "Error opening file: " << filename << std::endl;
-                return 1;
-            }
-
-            // Output buffers to tempFile_{runCounter}
-            while(buffers.size() != 0)
-            {
-                Records tempRecord = buffers.back();
-                buffers.pop_back();
-                tempFiles[runCounter] << to_string(tempRecord.emp_record.eid) << ","
-                                      << tempRecord.emp_record.ename << ","
-                                      << to_string(tempRecord.emp_record.age) << ","
-                                      << to_string(tempRecord.emp_record.salary) << "\n";
-            }
-             
-            // Reset buffers and number_of_emp_records for next temp file. Inc runCounter
-            buffers.clear();
-            number_of_emp_records = 0;
-            tempFiles[runCounter].close();
-
-            cout << "All records have been read into " << runCounter << " sorted temp files" << endl;
-            break;
-        }
-
-        // Store the empRecord in buffers and inc the counter
-        buffers.push_back(empRecord);
-        number_of_emp_records++;
-
-        // Do not exceed 22 Records in main memory. Make tempFiles store 20 records so we can sort merge later
-        if(number_of_emp_records == 20)
-        {
-            // Sort buffers before storing in file
-            Sort_Buffer();
-
-            // Open a new temp file, call it tempFile_{runCounter}
-            std::string filename = "tempFile_" + std::to_string(runCounter);
-            tempFiles[runCounter].open(filename, ios::out);
-
-            // Check if the file is successfully opened
-            if (!tempFiles[runCounter]) {
-                std::cerr << "Error opening file: " << filename << std::endl;
-                return 1;
-            }
-
-            // Output buffers to tempFile_{runCounter}
-            // buffers gets popped to make sure we don't exceed 22 pages in memory
-            while(buffers.size() != 0)
-            {
-                Records tempRecord = buffers.back();
-                buffers.pop_back();
-                tempFiles[runCounter] << to_string(tempRecord.emp_record.eid) << ","
-                                      << tempRecord.emp_record.ename << ","
-                                      << to_string(tempRecord.emp_record.age) << ","
-                                      << to_string(tempRecord.emp_record.salary) << "\n";
-            }
-             
-            // Reset buffers and number_of_emp_records for next temp file. Inc runCounter
-            number_of_emp_records = 0;
-            tempFiles[runCounter++].close();
-        }
-    }
-
-    //2. Use Merge_Runs() to Sort the runs of Emp relations 
-    cout << "Merging temp_files and outputting EmpSorted.csv" << endl;
-    Merge_Runs();
+    deptin.open("Dept.csv", ios::in);
    
-    // Delete the temporary files (runs) after you've sorted the Emp.csv
-    for (int i = 0; i < buffer_size; ++i) {
-        tempFiles[i].close();
-        std::string filename = "tempFile_" + std::to_string(i);
+    //Creating the Join.csv file where we will store our joined results
+    fstream joinout;
+    joinout.open("Join.csv", ios::out | ios::app | ios::trunc);
+
+    //1. Create runs for Dept and Emp which are sorted using Sort_Buffer()
+    int empRunCount = Create_Emp_Runs(empin);
+    int deptRunCount = Create_Dept_Runs(deptin);
+
+    //2. Use Merge_Join_Runs() to Join the runs of Dept and Emp relations 
+    Merge_Join_Runs(joinout, empRunCount, deptRunCount);
+
+    // Cleanup temp files
+    for (int i = 0; i < empRunCount; ++i) {
+        std::string filename = "tempEmpFile" + std::to_string(i);
         const char* filename_cstr = filename.c_str();
         remove(filename_cstr);
     }
-    
-    return 0;
+    for (int i = 0; i < deptRunCount; ++i) {
+        std::string filename = "tempDeptFile" + std::to_string(i);
+        const char* filename_cstr = filename.c_str();
+        remove(filename_cstr);
+    }
+
+    cout << "Emp.csv and Dept.csv joined into Join.csv. Temp run files removed.\n";
+
 }
